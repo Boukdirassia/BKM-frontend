@@ -44,7 +44,7 @@ const ErrorPage = () => {
             }
           }}
       >
-        Go back to BKM
+        Go back Home
       </Button>
     </Box>
   );
