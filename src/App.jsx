@@ -1,10 +1,20 @@
 import React from 'react';
-import { RouterProvider } from 'react-router-dom';
-import { ThemeProvider } from '@mui/material/styles';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
+import { Box } from '@mui/material';
 import { AuthProvider } from './context/AuthContext';
-import { theme } from './theme';
-import router from './routes';
+// import { theme } from './theme';
+// import router from './routes';
+import Navbar from './components/Navbar/Navbar';
+import Footer from './components/Footer/Footer';
+import Home from './pages/Home/Home';
+import Vehicules from './pages/Vehicules/Vehicules';
+import Reserver from './pages/Reserver/Reserver';
+import Avis from './pages/Avis/Avis';
+import Contact from './pages/Contact/Contact';
+import Login from './pages/Auth/Login';
+import Register from './pages/Auth/Register';
 import AdminLayout from './components/Admin/Layout/AdminLayout';
 import Dashboard from './pages/Admin/Dashboard/Dashboard';
 import Assistants from './pages/Admin/Assistants/Assistants';
@@ -164,11 +174,19 @@ const MainLayout = () => {
 
 function App() {
   return (
+    // <ThemeProvider theme={theme}>
+    //   <CssBaseline />
+    //   <AuthProvider>
+    //       <RouterProvider router={router} />
+    //   </AuthProvider>
+    // </ThemeProvider>
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <AuthProvider>
-          <RouterProvider router={router} />
-      </AuthProvider>
+      <Router>
+        <AuthProvider>
+          <MainLayout />
+        </AuthProvider>
+      </Router>
     </ThemeProvider>
   );
 }
