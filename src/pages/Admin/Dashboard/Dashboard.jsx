@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { voitureService, clientService, reservationService } from '../../../services';
 import { 
   Grid, 
   Paper, 
@@ -43,7 +44,7 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 
 // Composant pour les cartes de statistiques
-const StatCard = ({ title, value, icon, color, trend, percentage }) => (
+const StatCard = ({ title, value, icon, color }) => (
   <Paper
     sx={{
       p: 3,
@@ -76,24 +77,7 @@ const StatCard = ({ title, value, icon, color, trend, percentage }) => (
         {title}
       </Typography>
     </Box>
-    {trend && (
-      <Box sx={{ display: 'flex', alignItems: 'center', ml: 2 }}>
-        {trend === 'up' ? (
-          <TrendingUpIcon sx={{ color: '#4CAF50', mr: 0.5 }} />
-        ) : (
-          <TrendingDownIcon sx={{ color: '#F44336', mr: 0.5 }} />
-        )}
-        <Typography 
-          variant="body2" 
-          sx={{ 
-            color: trend === 'up' ? '#4CAF50' : '#F44336',
-            fontWeight: 'bold'
-          }}
-        >
-          {percentage}%
-        </Typography>
-      </Box>
-    )}
+    {/* Tendances et pourcentages supprimés */}
   </Paper>
 );
 
@@ -130,27 +114,154 @@ const ReservationStatus = ({ status }) => {
   );
 };
 
-// Données pour les véhicules populaires
-const popularVehicles = [
-  { id: 1, name: 'Tesla Model S', image: 'https://placehold.co/50', rentCount: 42 },
-  { id: 2, name: 'BMW X5', image: 'https://placehold.co/50', rentCount: 38 },
-  { id: 3, name: 'Mercedes C-Class', image: 'https://placehold.co/50', rentCount: 35 },
-  { id: 4, name: 'Audi A4', image: 'https://placehold.co/50', rentCount: 29 },
-];
 
-// Données pour les réservations récentes
-const recentReservations = [
-  { id: 1, customer: 'Jean Dupont', vehicle: 'Tesla Model S', date: '20/04/2025', amount: '€120', status: 'confirmed' },
-  { id: 2, customer: 'Marie Martin', vehicle: 'BMW X5', date: '19/04/2025', amount: '€95', status: 'pending' },
-  { id: 3, customer: 'Pierre Durand', vehicle: 'Audi A4', date: '18/04/2025', amount: '€85', status: 'confirmed' },
-  { id: 4, customer: 'Sophie Leroy', vehicle: 'Mercedes C-Class', date: '17/04/2025', amount: '€110', status: 'cancelled' },
-  { id: 5, customer: 'Lucas Bernard', vehicle: 'Renault Clio', date: '16/04/2025', amount: '€65', status: 'confirmed' },
-];
 
 const Dashboard = () => {
   const [timeFilter, setTimeFilter] = useState('month');
   const [anchorEl, setAnchorEl] = useState(null);
   const [notificationAnchorEl, setNotificationAnchorEl] = useState(null);
+  
+  // États pour stocker les données récupérées
+  const [vehicles, setVehicles] = useState([]);
+  const [availableVehicles, setAvailableVehicles] = useState(0);
+  const [clients, setClients] = useState([]);
+  const [reservations, setReservations] = useState([]);
+  const [recentReservations, setRecentReservations] = useState([]);
+  const [popularVehicles, setPopularVehicles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [totalRevenue, setTotalRevenue] = useState(0);
+  
+  // Fonction pour calculer les véhicules populaires
+  const calculatePopularVehicles = (allReservations, allVehicles) => {
+    // Compter les occurrences de chaque véhicule dans les réservations
+    const vehicleCounts = {};
+    allReservations.forEach(reservation => {
+      const vehicleId = reservation.VoitureID;
+      if (vehicleId) {
+        vehicleCounts[vehicleId] = (vehicleCounts[vehicleId] || 0) + 1;
+      }
+    });
+    
+    // Convertir en tableau et trier par nombre de réservations
+    const sortedVehicles = Object.keys(vehicleCounts)
+      .map(id => {
+        const vehicle = allVehicles.find(v => v.VoitureID === parseInt(id));
+        if (!vehicle) return null;
+        
+        // Déterminer le nom du véhicule en utilisant les champs disponibles
+        // Vérifier toutes les variantes possibles du nom de champ "Modèle"
+        const marque = vehicle.Marque || 'Marque inconnue';
+        const modele = vehicle.Modele || vehicle.Modèle || vehicle.modele || vehicle.modèle || 'Modèle inconnu';
+        
+        // Pour débogage
+        console.log('Véhicule trouvé:', vehicle);
+        
+        return {
+          id: vehicle.VoitureID,
+          name: `${marque} ${modele}`,
+          image: 'https://placehold.co/50', // Placeholder pour l'image
+          rentCount: vehicleCounts[id]
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.rentCount - a.rentCount)
+      .slice(0, 4); // Prendre les 4 premiers
+    
+    return sortedVehicles;
+  };
+  
+  // Fonction pour formater les réservations récentes
+  const formatRecentReservations = (allReservations, allClients, allVehicles) => {
+    // Obtenir le mois et l'année actuels
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth();
+    const currentYear = currentDate.getFullYear();
+    
+    // Filtrer les réservations du mois en cours
+    const currentMonthReservations = allReservations.filter(reservation => {
+      const reservationDate = new Date(reservation.DateDébut);
+      return reservationDate.getMonth() === currentMonth && 
+             reservationDate.getFullYear() === currentYear;
+    });
+    
+    console.log(`Réservations filtrées pour le mois ${currentMonth + 1}/${currentYear}:`, currentMonthReservations.length);
+    
+    return currentMonthReservations
+      .map(reservation => {
+        const client = allClients.find(c => c.UserID === reservation.ClientID);
+        const vehicle = allVehicles.find(v => v.VoitureID === reservation.VoitureID);
+        
+        if (!client || !vehicle) return null;
+        
+        // Calculer le montant en fonction des dates et du prix journalier
+        let amount = 0;
+        try {
+          const startDate = new Date(reservation.DateDébut);
+          const endDate = new Date(reservation.DateFin);
+          
+          // Vérifier que les dates sont valides
+          if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+            const days = Math.max(1, Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)));
+            const prix = parseFloat(vehicle.PrixJournalier) || parseFloat(vehicle.Prix) || 0;
+            amount = days * prix;
+          }
+          
+          // Débogage détaillé pour identifier le champ de prix
+          console.log('Véhicule complet:', vehicle);
+          console.log('Propriétés du véhicule:', Object.keys(vehicle));
+          console.log('Valeurs de prix possibles:', {
+            Prix: vehicle.Prix,
+            PrixJournalier: vehicle.PrixJournalier,
+            prix: vehicle.prix,
+            prixJournalier: vehicle.prixJournalier,
+            price: vehicle.price,
+            dailyPrice: vehicle.dailyPrice
+          });
+        } catch (error) {
+          console.error('Erreur lors du calcul du montant:', error);
+        }
+        
+        // Déterminer le nom du véhicule
+        const marque = vehicle.Marque || 'Marque inconnue';
+        const modele = vehicle.Modele || vehicle.Modèle || vehicle.modele || vehicle.modèle || 'Modèle inconnu';
+        
+        return {
+          id: reservation.ResID,
+          customer: `${client.Prenom} ${client.Nom}`,
+          vehicle: `${marque} ${modele}`,
+          date: new Date(reservation.DateDébut).toLocaleDateString(),
+          // Essayer tous les noms de champs possibles pour le prix
+          amount: `${parseFloat(vehicle.Prix) || 
+                    parseFloat(vehicle.PrixJournalier) || 
+                    parseFloat(vehicle.prix) || 
+                    parseFloat(vehicle.prixJournalier) || 
+                    parseFloat(vehicle.price) || 
+                    parseFloat(vehicle.dailyPrice) || 
+                    0} DH/jour`,
+          status: reservation.Statut === 'Confirmée' ? 'confirmed' : 
+                  reservation.Statut === 'Annulée' ? 'cancelled' : 'pending'
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+  };
+  
+  // Fonction pour calculer le revenu total
+  const calculateTotalRevenue = (allReservations, allVehicles) => {
+    return allReservations.reduce((total, reservation) => {
+      if (reservation.Statut === 'Confirmée') {
+        const vehicle = allVehicles.find(v => v.VoitureID === reservation.VoitureID);
+        if (vehicle) {
+          const startDate = new Date(reservation.DateDébut);
+          const endDate = new Date(reservation.DateFin);
+          const days = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+          return total + (days * vehicle.PrixJournalier);
+        }
+      }
+      return total;
+    }, 0);
+  };
 
   // Gestion des menus
   const handleMenuOpen = (event) => {
@@ -171,7 +282,92 @@ const Dashboard = () => {
 
   const handleTimeFilterChange = (event) => {
     setTimeFilter(event.target.value);
+    // Recharger les données avec le nouveau filtre
+    loadDashboardData(event.target.value);
   };
+  
+  // Fonction pour charger toutes les données du tableau de bord
+  const loadDashboardData = async (filter = 'month') => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Récupérer toutes les voitures
+      const vehiclesData = await voitureService.getAllVoitures();
+      setVehicles(vehiclesData);
+      
+      // Récupérer les voitures disponibles
+      const availableVehiclesData = await voitureService.getAvailableVoitures();
+      setAvailableVehicles(availableVehiclesData.length);
+      
+      // Récupérer tous les clients
+      const clientsData = await clientService.getAllClients();
+      setClients(clientsData);
+      
+      // Récupérer toutes les réservations
+      const reservationsData = await reservationService.getAllReservations();
+      
+      // Filtrer les réservations selon la période sélectionnée
+      const filteredReservations = filterReservationsByTime(reservationsData, filter);
+      setReservations(filteredReservations);
+      
+      // Calculer les véhicules populaires
+      const popular = calculatePopularVehicles(filteredReservations, vehiclesData);
+      setPopularVehicles(popular);
+      
+      // Formater les réservations récentes
+      const recent = formatRecentReservations(filteredReservations, clientsData, vehiclesData);
+      setRecentReservations(recent);
+      
+      // Calculer le revenu total
+      const revenue = calculateTotalRevenue(filteredReservations, vehiclesData);
+      setTotalRevenue(revenue);
+      
+    } catch (err) {
+      console.error('Erreur lors du chargement des données du tableau de bord:', err);
+      setError('Erreur lors du chargement des données. Veuillez réessayer.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Fonction pour filtrer les réservations selon la période
+  const filterReservationsByTime = (reservations, filter) => {
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay()); // Dimanche comme début de semaine
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    
+    let startDate;
+    
+    switch (filter) {
+      case 'day':
+        startDate = startOfDay;
+        break;
+      case 'week':
+        startDate = startOfWeek;
+        break;
+      case 'year':
+        startDate = startOfYear;
+        break;
+      case 'month':
+      default:
+        startDate = startOfMonth;
+        break;
+    }
+    
+    return reservations.filter(reservation => {
+      const reservationDate = new Date(reservation.DateDébut);
+      return reservationDate >= startDate;
+    });
+  };
+  
+  // Charger les données au chargement du composant
+  useEffect(() => {
+    loadDashboardData(timeFilter);
+  }, []);  // Dépendance vide pour ne charger qu'une fois au montage
 
   return (
     <Box>
@@ -247,59 +443,32 @@ const Dashboard = () => {
         </Box>
       </Box>
       
-      {/* Alertes */}
-      <Alert 
-        severity="warning" 
-        sx={{ mb: 4, borderRadius: 2 }}
-        action={
-          <Button color="inherit" size="small">
-            VOIR
-          </Button>
-        }
-      >
-        3 véhicules nécessitent une maintenance programmée
-      </Alert>
+      {/* Espace pour les alertes - supprimé */}
       
       {/* Cartes de statistiques */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={4}>
           <StatCard
             title="Véhicules disponibles"
-            value="24"
+            value={loading ? "..." : availableVehicles}
             icon={<DirectionsCarIcon sx={{ fontSize: 40 }} />}
             color="#FFD700"
-            trend="up"
-            percentage="8"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={4}>
           <StatCard
             title="Utilisateurs actifs"
-            value="156"
+            value={loading ? "..." : clients.length}
             icon={<PeopleIcon sx={{ fontSize: 40 }} />}
             color="#4CAF50"
-            trend="up"
-            percentage="12"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={4}>
           <StatCard
             title="Réservations"
-            value="38"
+            value={loading ? "..." : reservations.length}
             icon={<BookOnlineIcon sx={{ fontSize: 40 }} />}
             color="#2196F3"
-            trend="down"
-            percentage="5"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Revenus"
-            value="€9,840"
-            icon={<AttachMoneyIcon sx={{ fontSize: 40 }} />}
-            color="#F44336"
-            trend="up"
-            percentage="15"
           />
         </Grid>
       </Grid>
@@ -309,7 +478,7 @@ const Dashboard = () => {
         <Grid item xs={12} md={8}>
           <Card sx={{ borderRadius: 2 }}>
             <CardHeader 
-              title="Réservations récentes" 
+              title="Réservations du mois en cours" 
               action={
                 <>
                   <IconButton aria-label="settings" onClick={handleMenuOpen}>
@@ -346,17 +515,31 @@ const Dashboard = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {recentReservations.map((reservation) => (
-                    <TableRow key={reservation.id}>
-                      <TableCell>{reservation.customer}</TableCell>
-                      <TableCell>{reservation.vehicle}</TableCell>
-                      <TableCell>{reservation.date}</TableCell>
-                      <TableCell>{reservation.amount}</TableCell>
-                      <TableCell>
-                        <ReservationStatus status={reservation.status} />
-                      </TableCell>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={5} align="center">Chargement des données...</TableCell>
                     </TableRow>
-                  ))}
+                  ) : error ? (
+                    <TableRow>
+                      <TableCell colSpan={5} align="center">{error}</TableCell>
+                    </TableRow>
+                  ) : recentReservations.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} align="center">Aucune réservation trouvée</TableCell>
+                    </TableRow>
+                  ) : (
+                    recentReservations.map((reservation) => (
+                      <TableRow key={reservation.id}>
+                        <TableCell>{reservation.customer}</TableCell>
+                        <TableCell>{reservation.vehicle}</TableCell>
+                        <TableCell>{reservation.date}</TableCell>
+                        <TableCell>{reservation.amount}</TableCell>
+                        <TableCell>
+                          <ReservationStatus status={reservation.status} />
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </TableContainer>
@@ -382,26 +565,40 @@ const Dashboard = () => {
             <Divider />
             <CardContent>
               <List>
-                {popularVehicles.map((vehicle) => (
-                  <ListItem key={vehicle.id} sx={{ px: 0 }}>
-                    <ListItemAvatar>
-                      <Avatar src={vehicle.image} variant="rounded" />
-                    </ListItemAvatar>
-                    <ListItemText 
-                      primary={vehicle.name} 
-                      secondary={`${vehicle.rentCount} locations`}
-                    />
-                    <Chip 
-                      label={`#${popularVehicles.indexOf(vehicle) + 1}`}
-                      size="small"
-                      sx={{ 
-                        backgroundColor: '#FFD70020', 
-                        color: '#FFD700',
-                        fontWeight: 'bold'
-                      }}
-                    />
+                {loading ? (
+                  <ListItem>
+                    <ListItemText primary="Chargement des données..." />
                   </ListItem>
-                ))}
+                ) : error ? (
+                  <ListItem>
+                    <ListItemText primary={error} />
+                  </ListItem>
+                ) : popularVehicles.length === 0 ? (
+                  <ListItem>
+                    <ListItemText primary="Aucun véhicule trouvé" />
+                  </ListItem>
+                ) : (
+                  popularVehicles.map((vehicle) => (
+                    <ListItem key={vehicle.id} sx={{ px: 0 }}>
+                      <ListItemAvatar>
+                        <Avatar src={vehicle.image} variant="rounded" />
+                      </ListItemAvatar>
+                      <ListItemText 
+                        primary={vehicle.name} 
+                        secondary={`${vehicle.rentCount} location${vehicle.rentCount > 1 ? 's' : ''}`}
+                      />
+                      <Chip 
+                        label={`#${popularVehicles.indexOf(vehicle) + 1}`}
+                        size="small"
+                        sx={{ 
+                          backgroundColor: '#FFD70020', 
+                          color: '#FFD700',
+                          fontWeight: 'bold'
+                        }}
+                      />
+                    </ListItem>
+                  ))
+                )}
               </List>
             </CardContent>
             <Box sx={{ p: 2, display: 'flex', justifyContent: 'flex-end' }}>

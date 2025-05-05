@@ -22,70 +22,140 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  CircularProgress,
+  Snackbar,
+  Alert,
+  Divider,
+  Tabs,
+  Tab,
+  Avatar,
+  TablePagination,
+  Tooltip,
+  Slide
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import DescriptionIcon from '@mui/icons-material/Description';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
+import { extraService } from '../../../services';
+import AdminTabs from '../../../components/Admin/Navigation/AdminTabs';
 
 const Extras = () => {
   const [extras, setExtras] = useState([]);
+  const [filteredExtras, setFilteredExtras] = useState([]);
   const [open, setOpen] = useState(false);
   const [newExtra, setNewExtra] = useState({ 
-    nom: '', 
-    description: '', 
-    prix: '' 
+    Nom: '', 
+    Description: '', 
+    Prix: '' 
   });
   const [editingExtra, setEditingExtra] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'success'
+  });
+  
+  // État pour le filtrage par période
+  const [periodFilter, setPeriodFilter] = useState('all');
+  
+  // États pour la pagination
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
 
   const handleOpen = () => setOpen(true);
   const handleClose = () => { setOpen(false); setErrors({}); };
   const handleChange = (e) => setNewExtra({ ...newExtra, [e.target.name]: e.target.value });
 
-  const handleSave = () => {
+  const handleSnackbarClose = () => {
+    setSnackbar({...snackbar, open: false});
+  };
+
+  const showSnackbar = (message, severity = 'success') => {
+    setSnackbar({
+      open: true,
+      message,
+      severity
+    });
+  };
+
+  const fetchExtras = async () => {
+    try {
+      setLoading(true);
+      const data = await extraService.getAllExtras();
+      console.log('Extras récupérés:', data);
+      
+      // Trier les extras par ordre décroissant d'ID (les derniers ajoutés en premier)
+      const sortedExtras = [...data].sort((a, b) => b.ExtraID - a.ExtraID);
+      
+      setExtras(sortedExtras);
+    } catch (error) {
+      console.error('Erreur lors de la récupération des extras:', error);
+      showSnackbar('Erreur lors de la récupération des extras', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
     const newErrors = {};
-    if (!newExtra.nom.trim()) newErrors.nom = "Le nom est obligatoire";
-    if (!newExtra.description.trim()) newErrors.description = "La description est obligatoire";
-    if (!newExtra.prix.trim()) newErrors.prix = "Le prix est obligatoire";
+    if (!newExtra.Nom || !newExtra.Nom.trim()) newErrors.Nom = "Le nom est obligatoire";
+    if (!newExtra.Description || !newExtra.Description.trim()) newErrors.Description = "La description est obligatoire";
+    if (!newExtra.Prix) newErrors.Prix = "Le prix est obligatoire";
+    if (newExtra.Prix && isNaN(Number(newExtra.Prix))) newErrors.Prix = "Le prix doit être un nombre";
     
     if (Object.keys(newErrors).length > 0) { 
       setErrors(newErrors); 
       return; 
     }
     
-    if (editingExtra) {
-      // Mise à jour d'un extra existant
-      setExtras(prev => prev.map(item => 
-        item.id === editingExtra.id ? { ...newExtra, id: item.id } : item
-      ));
-      setEditingExtra(null);
-    } else {
-      // Ajout d'un nouvel extra
-      setExtras(prev => [...prev, { ...newExtra, id: prev.length + 1 }]);
+    try {
+      setLoading(true);
+      
+      if (editingExtra) {
+        // Mise à jour d'un extra existant
+        await extraService.updateExtra(editingExtra.ExtraID, newExtra);
+        showSnackbar('Extra mis à jour avec succès');
+      } else {
+        // Ajout d'un nouvel extra
+        await extraService.createExtra(newExtra);
+        showSnackbar('Extra ajouté avec succès');
+      }
+      
+      // Réinitialiser le formulaire et récupérer les extras mis à jour
+      setNewExtra({ 
+        Nom: '', 
+        Description: '', 
+        Prix: '' 
+      });
+      setErrors({});
+      handleClose();
+      fetchExtras();
+      
+    } catch (error) {
+      console.error('Erreur lors de l\'enregistrement de l\'extra:', error);
+      showSnackbar('Erreur lors de l\'enregistrement de l\'extra', 'error');
+    } finally {
+      setLoading(false);
     }
-    setNewExtra({ 
-      nom: '', 
-      description: '', 
-      prix: '' 
-    });
-    setErrors({});
-    handleClose();
   };
 
   const handleEdit = (extra) => {
     setEditingExtra(extra);
     setNewExtra({
-      nom: extra.nom,
-      description: extra.description,
-      prix: extra.prix
+      Nom: extra.Nom,
+      Description: extra.Description,
+      Prix: extra.Prix
     });
     setOpen(true);
   };
@@ -95,11 +165,21 @@ const Extras = () => {
     setOpenDeleteDialog(true);
   };
   
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (confirmDeleteId) {
-      setExtras(prev => prev.filter(item => item.id !== confirmDeleteId));
-      setOpenDeleteDialog(false);
-      setConfirmDeleteId(null);
+      try {
+        setLoading(true);
+        await extraService.deleteExtra(confirmDeleteId);
+        setOpenDeleteDialog(false);
+        setConfirmDeleteId(null);
+        showSnackbar('Extra supprimé avec succès');
+        fetchExtras();
+      } catch (error) {
+        console.error('Erreur lors de la suppression de l\'extra:', error);
+        showSnackbar('Erreur lors de la suppression de l\'extra', 'error');
+      } finally {
+        setLoading(false);
+      }
     }
   };
   
@@ -110,28 +190,65 @@ const Extras = () => {
   
   const handleSearch = (e) => {
     setSearchTerm(e.target.value);
+    setPage(0); // Réinitialiser la page lors d'une nouvelle recherche
+  };
+  
+  // Gestionnaires d'événements pour la pagination
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
   };
   
   // Filtrer les extras en fonction du terme de recherche
-  const filteredExtras = extras.filter(extra => 
-    extra.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    extra.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    extra.prix.toString().includes(searchTerm)
+  // Utiliser la variable d'état filteredExtras au lieu de déclarer une nouvelle constante
+  const extrasFiltered = extras.filter(extra => 
+    (extra.Nom && extra.Nom.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (extra.Description && extra.Description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (extra.Prix && extra.Prix.toString().includes(searchTerm))
+  );
+  
+  // Appliquer la pagination aux extras filtrés
+  const paginatedExtras = extrasFiltered.slice(
+    page * rowsPerPage,
+    page * rowsPerPage + rowsPerPage
   );
 
   useEffect(() => {
-    // TODO: fetch extras via API
-    setExtras([]);
+    fetchExtras();
   }, []);
+
+  // Définition des tabs pour la navigation
+  const tabs = [
+    { label: 'Extras', path: 'extras', icon: <AddShoppingCartIcon /> }
+  ];
+
+  // Afficher un indicateur de chargement pendant la récupération des données
+  if (loading && extras.length === 0) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '70vh' }}>
+        <CircularProgress size={60} thickness={4} sx={{ color: '#FFD700' }} />
+      </Box>
+    );
+  }
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
+      {/* Tabs de navigation */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 'bold' }}>Gestion des extras</Typography>
+        <AdminTabs tabs={tabs} />
         <Button onClick={handleOpen} variant="contained" color="primary" startIcon={<AddIcon />}>
           Ajouter un extra
         </Button>
       </Box>
+
+      {/* Titre de la page */}
+      <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 3 }}>
+        Gestion des extras
+      </Typography>
 
       <TextField
         variant="outlined"
@@ -144,32 +261,76 @@ const Extras = () => {
       />
 
       <Paper elevation={3} sx={{ mb: 3, p: 2, borderRadius: 2 }}>
-        <TableContainer sx={{ borderRadius: 2, overflow: 'hidden' }}>
+        <TableContainer sx={{ borderRadius: 2, overflow: 'auto', maxWidth: '100%' }}>
           <Table sx={{
             minWidth: 650,
+            tableLayout: 'fixed',
             '& .MuiTableRow-root:nth-of-type(odd)': { backgroundColor: 'action.hover' },
-            '& .MuiTableRow-root:hover': { backgroundColor: 'grey.200' },
+            '& .MuiTableRow-root:hover': { backgroundColor: 'rgba(0, 0, 0, 0.1)' },
+            '& .MuiTableCell-root': { padding: '16px 8px', borderSpacing: '2px' },
+            borderCollapse: 'separate',
+            borderSpacing: '0 8px',
+            width: '100%'
           }}>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>ExtraID</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>Nom</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>Description</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>Prix</TableCell>
-                <TableCell align="center" sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>Actions</TableCell>
+                <TableCell width="25%" sx={{ fontWeight: 'bold', backgroundColor: '#000', color: 'white', borderTopLeftRadius: 4, borderBottomLeftRadius: 4 }}>Nom</TableCell>
+                <TableCell width="50%" sx={{ fontWeight: 'bold', backgroundColor: '#000', color: 'white' }}>Description</TableCell>
+                <TableCell width="15%" sx={{ fontWeight: 'bold', backgroundColor: '#000', color: 'white', textAlign: 'center' }}>Prix (DH/jour)</TableCell>
+                <TableCell width="10%" align="center" sx={{ fontWeight: 'bold', backgroundColor: '#000', color: '#FFFFFF', position: 'sticky', right: 0, zIndex: 2, borderTopRightRadius: 4, borderBottomRightRadius: 4 }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredExtras.length > 0 ? (
-                filteredExtras.map(extra => (
-                  <TableRow key={extra.id}>
-                    <TableCell>{extra.id}</TableCell>
-                    <TableCell>{extra.nom}</TableCell>
-                    <TableCell>{extra.description}</TableCell>
-                    <TableCell>{extra.prix} DH</TableCell>
-                    <TableCell align="center">
-                      <IconButton color="primary" size="small" onClick={() => handleEdit(extra)}><EditIcon fontSize="small" /></IconButton>
-                      <IconButton color="error" size="small" onClick={() => handleDeleteClick(extra.id)}><DeleteIcon fontSize="small" /></IconButton>
+              {paginatedExtras.length > 0 ? (
+                paginatedExtras.map((extra, index) => (
+                  <TableRow key={extra.ExtraID} sx={{
+                    backgroundColor: index % 2 === 0 ? '#f9f9f9' : 'white',
+                    '&:hover': { backgroundColor: '#f0f0f0' }
+                  }}>
+                    <TableCell sx={{ borderTopLeftRadius: 4, borderBottomLeftRadius: 4, fontWeight: 'medium' }}>{extra.Nom}</TableCell>
+                    <TableCell>{extra.Description}</TableCell>
+                    <TableCell sx={{ textAlign: 'center' }}>{extra.Prix} DH/jour</TableCell>
+                    <TableCell align="center" sx={{ position: 'sticky', right: 0, zIndex: 1, borderTopRightRadius: 4, borderBottomRightRadius: 4 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
+                        <IconButton 
+                          onClick={() => handleEdit(extra)}
+                          size="small"
+                          disabled={loading}
+                          sx={{ 
+                            p: 0,
+                            '&:hover': { 
+                              transform: 'scale(1.1)'
+                            }
+                          }}
+                        >
+                          <Avatar sx={{ 
+                            width: 30, 
+                            height: 30, 
+                            bgcolor: loading ? 'rgba(255, 215, 0, 0.5)' : '#FFD700'
+                          }}>
+                            <EditIcon fontSize="small" sx={{ color: loading ? 'rgba(0, 0, 0, 0.5)' : '#000' }} />
+                          </Avatar>
+                        </IconButton>
+                        <IconButton 
+                          onClick={() => handleDeleteClick(extra.ExtraID)}
+                          size="small"
+                          disabled={loading}
+                          sx={{ 
+                            p: 0,
+                            '&:hover': { 
+                              transform: 'scale(1.1)'
+                            }
+                          }}
+                        >
+                          <Avatar sx={{ 
+                            width: 30, 
+                            height: 30, 
+                            bgcolor: loading ? 'rgba(255, 68, 68, 0.5)' : '#ff4444'
+                          }}>
+                            <DeleteIcon fontSize="small" sx={{ color: '#FFF' }} />
+                          </Avatar>
+                        </IconButton>
+                      </Box>
                     </TableCell>
                   </TableRow>
                 ))
@@ -183,8 +344,22 @@ const Extras = () => {
             </TableBody>
           </Table>
         </TableContainer>
+        
+        {/* Pagination */}
+        <TablePagination
+          rowsPerPageOptions={[5, 10, 25]}
+          component="div"
+          count={extrasFiltered.length}
+          rowsPerPage={rowsPerPage}
+          page={page}
+          onPageChange={handleChangePage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+          labelRowsPerPage="Lignes par page:"
+          labelDisplayedRows={({ from, to, count }) => `${from}-${to} sur ${count}`}
+        />
       </Paper>
 
+      {/* Dialogue d'ajout/modification d'extra */}
       <Dialog
         open={open}
         onClose={handleClose}
@@ -199,101 +374,121 @@ const Extras = () => {
         <DialogContent sx={{ px: 4, py: 4, backgroundColor: '#000000', '&::-webkit-scrollbar': { display: 'none' }, scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           <Grid container spacing={2} sx={{ pt: 1 }}>
             <Grid item xs={12}>
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="subtitle2" sx={{ color: '#FFD700', mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <AddShoppingCartIcon sx={{ color: '#FFD700' }} /> Nom
-                </Typography>
-                <TextField 
-                  name="nom" 
-                  variant="outlined" 
-                  fullWidth 
-                  value={newExtra.nom} 
-                  onChange={handleChange} 
-                  error={!!errors.nom} 
-                  helperText={errors.nom} 
-                  sx={{ 
-                    '& .MuiOutlinedInput-root': { 
-                      backgroundColor: '#222222', 
-                      color: 'white', 
-                      '& fieldset': { borderColor: '#444444' }, 
-                      '&:hover fieldset': { borderColor: '#FFD700' }, 
-                      '&.Mui-focused fieldset': { borderColor: '#FFD700' } 
-                    }, 
-                    '& .MuiFormHelperText-root': { 
-                      color: '#f44336', 
-                      marginLeft: 0 
-                    } 
-                  }} 
+              <FormControl fullWidth error={!!errors.Nom}>
+                <TextField
+                  name="Nom"
+                  label="Nom de l'extra"
+                  variant="outlined"
+                  value={newExtra.Nom}
+                  onChange={handleChange}
+                  error={!!errors.Nom}
+                  helperText={errors.Nom}
+                  fullWidth
+                  required
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <AddShoppingCartIcon sx={{ color: '#FFD700' }} />
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      '& fieldset': { borderColor: '#444' },
+                      '&:hover fieldset': { borderColor: '#FFD700' },
+                      '&.Mui-focused fieldset': { borderColor: '#FFD700' },
+                    },
+                    '& .MuiInputLabel-root': { color: '#FFF' },
+                    '& .MuiInputBase-input': { color: '#FFF' },
+                  }}
                 />
-              </Box>
+              </FormControl>
             </Grid>
             <Grid item xs={12}>
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="subtitle2" sx={{ color: '#FFD700', mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <DescriptionIcon sx={{ color: '#FFD700' }} /> Description
-                </Typography>
-                <TextField 
-                  name="description" 
-                  variant="outlined" 
-                  fullWidth 
+              <FormControl fullWidth error={!!errors.Description}>
+                <TextField
+                  name="Description"
+                  label="Description"
+                  variant="outlined"
+                  value={newExtra.Description}
+                  onChange={handleChange}
+                  error={!!errors.Description}
+                  helperText={errors.Description}
+                  fullWidth
+                  required
                   multiline
-                  rows={3}
-                  value={newExtra.description} 
-                  onChange={handleChange} 
-                  error={!!errors.description} 
-                  helperText={errors.description} 
-                  sx={{ 
-                    '& .MuiOutlinedInput-root': { 
-                      backgroundColor: '#222222', 
-                      color: 'white', 
-                      '& fieldset': { borderColor: '#444444' }, 
-                      '&:hover fieldset': { borderColor: '#FFD700' }, 
-                      '&.Mui-focused fieldset': { borderColor: '#FFD700' } 
-                    }, 
-                    '& .MuiFormHelperText-root': { 
-                      color: '#f44336', 
-                      marginLeft: 0 
-                    } 
-                  }} 
+                  rows={4}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <DescriptionIcon sx={{ color: '#FFD700' }} />
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      '& fieldset': { borderColor: '#444' },
+                      '&:hover fieldset': { borderColor: '#FFD700' },
+                      '&.Mui-focused fieldset': { borderColor: '#FFD700' },
+                    },
+                    '& .MuiInputLabel-root': { color: '#FFF' },
+                    '& .MuiInputBase-input': { color: '#FFF' },
+                  }}
                 />
-              </Box>
+              </FormControl>
             </Grid>
             <Grid item xs={12}>
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="subtitle2" sx={{ color: '#FFD700', mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <MonetizationOnIcon sx={{ color: '#FFD700' }} /> Prix (DH)
-                </Typography>
-                <TextField 
-                  name="prix" 
-                  variant="outlined" 
-                  fullWidth 
+              <FormControl fullWidth error={!!errors.Prix}>
+                <TextField
+                  name="Prix"
+                  label="Prix en DH"
+                  variant="outlined"
+                  value={newExtra.Prix}
+                  onChange={handleChange}
+                  error={!!errors.Prix}
+                  helperText={errors.Prix}
+                  fullWidth
+                  required
                   type="number"
-                  value={newExtra.prix} 
-                  onChange={handleChange} 
-                  error={!!errors.prix} 
-                  helperText={errors.prix} 
-                  sx={{ 
-                    '& .MuiOutlinedInput-root': { 
-                      backgroundColor: '#222222', 
-                      color: 'white', 
-                      '& fieldset': { borderColor: '#444444' }, 
-                      '&:hover fieldset': { borderColor: '#FFD700' }, 
-                      '&.Mui-focused fieldset': { borderColor: '#FFD700' } 
-                    }, 
-                    '& .MuiFormHelperText-root': { 
-                      color: '#f44336', 
-                      marginLeft: 0 
-                    } 
-                  }} 
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <MonetizationOnIcon sx={{ color: '#FFD700' }} />
+                      </InputAdornment>
+                    ),
+                    inputProps: { min: 0 }
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      '& fieldset': { borderColor: '#444' },
+                      '&:hover fieldset': { borderColor: '#FFD700' },
+                      '&.Mui-focused fieldset': { borderColor: '#FFD700' },
+                    },
+                    '& .MuiInputLabel-root': { color: '#FFF' },
+                    '& .MuiInputBase-input': { color: '#FFF' },
+                  }}
                 />
-              </Box>
+              </FormControl>
             </Grid>
           </Grid>
         </DialogContent>
-        <DialogActions sx={{ backgroundColor: '#000000', px: 4, pb: 3 }}>
-          <Button onClick={handleClose} sx={{ color: '#FFD700' }}>Annuler</Button>
-          <Button onClick={handleSave} variant="contained" sx={{ backgroundColor: '#FFD700', color: '#000000', '&:hover': { backgroundColor: '#e6c200' } }}>
-            {editingExtra ? 'Mettre à jour' : 'Enregistrer'}
+        <DialogActions sx={{ px: 4, py: 3, backgroundColor: '#000000', borderTop: '1px solid #333' }}>
+          <Button 
+            onClick={handleClose} 
+            sx={{ color: '#FFD700', borderColor: '#FFD700', '&:hover': { borderColor: '#FFF', color: '#FFF' } }}
+            variant="outlined"
+            disabled={loading}
+          >
+            Annuler
+          </Button>
+          <Button 
+            onClick={handleSave} 
+            variant="contained" 
+            color="primary"
+            disabled={loading}
+            startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
+          >
+            {editingExtra ? 'Mettre à jour' : 'Ajouter'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -304,22 +499,76 @@ const Extras = () => {
         onClose={handleDeleteCancel}
         aria-labelledby="alert-dialog-title"
         aria-describedby="alert-dialog-description"
+        BackdropProps={{ sx: { backgroundColor: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(8px)' } }}
+        PaperProps={{ sx: { borderRadius: 3, backgroundColor: '#000000' } }}
       >
-        <DialogTitle id="alert-dialog-title" sx={{ backgroundColor: '#000', color: '#FFD700' }}>
+        <DialogTitle id="alert-dialog-title" sx={{ backgroundColor: '#000', color: '#FFD700', borderBottom: '1px solid #333' }}>
           {"Confirmer la suppression"}
         </DialogTitle>
-        <DialogContent sx={{ backgroundColor: '#000', color: 'white', pt: 2 }}>
+        <DialogContent sx={{ backgroundColor: '#000', color: 'white', pt: 2, mt: 1 }}>
           <Typography>
             Êtes-vous sûr de vouloir supprimer cet extra ? Cette action est irréversible.
           </Typography>
         </DialogContent>
-        <DialogActions sx={{ backgroundColor: '#000', p: 2 }}>
-          <Button onClick={handleDeleteCancel} sx={{ color: '#FFD700' }}>Annuler</Button>
-          <Button onClick={handleDeleteConfirm} variant="contained" color="error" autoFocus>
+        <DialogActions sx={{ backgroundColor: '#000', p: 2, borderTop: '1px solid #333' }}>
+          <Button 
+            onClick={handleDeleteCancel} 
+            sx={{ color: '#FFD700', borderColor: '#FFD700', '&:hover': { borderColor: '#FFF', color: '#FFF' } }}
+            variant="outlined"
+            disabled={loading}
+          >
+            Annuler
+          </Button>
+          <Button 
+            onClick={handleDeleteConfirm} 
+            variant="contained" 
+            color="error" 
+            autoFocus
+            disabled={loading}
+            startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
+          >
             Supprimer
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Snackbar pour les notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        TransitionComponent={Slide}
+        TransitionProps={{ direction: 'down' }}
+      >
+        <Alert 
+          onClose={handleSnackbarClose} 
+          severity={snackbar.severity} 
+          variant="filled"
+          icon={snackbar.severity === 'success' ? <CheckCircleOutlineIcon /> : undefined}
+          sx={{
+            width: '100%',
+            minWidth: '300px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            borderRadius: '8px',
+            '& .MuiAlert-icon': {
+              fontSize: '1.2rem',
+              alignItems: 'center',
+              display: 'flex'
+            },
+            '& .MuiAlert-message': {
+              fontSize: '0.95rem',
+              fontWeight: 500
+            },
+            ...(snackbar.severity === 'success' && {
+              backgroundColor: '#000',
+              color: '#fff'
+            })
+          }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };

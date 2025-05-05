@@ -7,6 +7,7 @@ import AddIcon from '@mui/icons-material/Add';
 import PersonIcon from '@mui/icons-material/Person';
 import BookOnlineIcon from '@mui/icons-material/BookOnline';
 import AddReservationClientDialog from '../../../components/Admin/Shared/AddReservationClientDialog';
+import { combinedService } from '../../../services';
 
 const ReservationClientLayout = ({ children, onAddReservation, onAddClient }) => {
   const location = useLocation();
@@ -14,7 +15,7 @@ const ReservationClientLayout = ({ children, onAddReservation, onAddClient }) =>
   const [dialogOpen, setDialogOpen] = useState(false);
   
   const tabs = [
-    { label: 'Rendez-vous', path: 'reservations', icon: <BookOnlineIcon /> },
+    { label: 'Réservation', path: 'reservations', icon: <BookOnlineIcon /> },
     { label: 'Clients', path: 'clients', icon: <PersonIcon /> }
   ];
 
@@ -26,16 +27,59 @@ const ReservationClientLayout = ({ children, onAddReservation, onAddClient }) =>
     setDialogOpen(false);
   };
 
-  const handleSaveReservation = (reservationData) => {
-    // Appeler la fonction onAddReservation et fermer le dialogue
-    onAddReservation(reservationData);
-    handleCloseDialog();
+  const handleSaveReservation = async (reservationData) => {
+    try {
+      // Appeler la fonction onAddReservation et attendre la réponse
+      const response = await onAddReservation(reservationData);
+      console.log('Réservation enregistrée avec succès:', response);
+      
+      // Ne pas fermer le dialogue en mode combiné (sera géré par le composant enfant)
+      if (!reservationData.fromCombinedMode) {
+        handleCloseDialog();
+      }
+      
+      return response;
+    } catch (error) {
+      console.error('Erreur lors de l\'enregistrement de la réservation:', error);
+      throw error;
+    }
   };
 
-  const handleSaveClient = (clientData) => {
-    // Appeler la fonction onAddClient et fermer le dialogue
-    onAddClient(clientData);
-    handleCloseDialog();
+  const handleSaveClient = async (clientData) => {
+    try {
+      // Appeler la fonction onAddClient et attendre la réponse
+      const response = await onAddClient(clientData);
+      console.log('Client enregistré avec succès:', response);
+      
+      // Ne pas fermer le dialogue en mode combiné (sera géré par le composant enfant)
+      if (!clientData.fromCombinedMode) {
+        handleCloseDialog();
+      }
+      
+      return response;
+    } catch (error) {
+      console.error('Erreur lors de l\'enregistrement du client:', error);
+      throw error;
+    }
+  };
+
+  // Fonction pour gérer le mode combiné
+  const handleSaveCombined = async (combinedData) => {
+    try {
+      console.log('Traitement du mode combiné...');
+      console.log('Données combinées à envoyer:', combinedData);
+      
+      // Utiliser le service combiné pour créer client et réservation en une seule opération
+      const response = await combinedService.createClientAndReservation(combinedData);
+      console.log('Réponse du mode combiné:', response);
+      
+      handleCloseDialog();
+      
+      return response;
+    } catch (error) {
+      console.error('Erreur lors de l\'enregistrement combiné client/réservation:', error);
+      throw error;
+    }
   };
 
   // Écouter l'événement pour ouvrir le dialogue
@@ -73,6 +117,7 @@ const ReservationClientLayout = ({ children, onAddReservation, onAddClient }) =>
           handleOpen={handleOpenDialog}
           handleSaveReservation={handleSaveReservation}
           handleSaveClient={handleSaveClient}
+          handleSaveCombined={handleSaveCombined}
         />
       </Box>
       {children}

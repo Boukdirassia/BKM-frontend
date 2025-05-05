@@ -14,24 +14,12 @@ import {
   TextField,
   IconButton,
   InputAdornment,
+  Grid,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Grid,
-  Snackbar,
-  Alert,
-  CircularProgress,
-  Divider,
-  Tooltip,
-  Tabs,
-  Tab,
-  Avatar,
-  TablePagination
+  CircularProgress
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
@@ -66,15 +54,6 @@ const Clients = () => {
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(true);
-  const [snackbar, setSnackbar] = useState({
-    open: false,
-    message: '',
-    severity: 'success'
-  });
-  
-  // États pour la pagination
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(5);
 
   const handleChange = (e) => setNewClient({ ...newClient, [e.target.name]: e.target.value });
 
@@ -144,21 +123,9 @@ const Clients = () => {
         Nom: nom,
         Telephone: clientData.telephone,
         Email: clientData.email || `${prenom.toLowerCase()}.${nom.toLowerCase()}@example.com`,
+        Password: 'password123', // Pour simplifier, à remplacer par un système plus sécurisé
         Roles: 'Client'
       };
-      
-      // Ajouter le mot de passe seulement s'il est fourni
-      // Pour une nouvelle création, utiliser un mot de passe par défaut
-      // Pour une modification, n'inclure le mot de passe que s'il est fourni et non vide
-      if (editingClient) {
-        // Modification : n'inclure le mot de passe que s'il est fourni et non vide
-        if (clientData.password && clientData.password.trim() !== '') {
-          userData.Password = clientData.password;
-        }
-      } else {
-        // Création : utiliser le mot de passe fourni ou un mot de passe par défaut
-        userData.Password = (clientData.password && clientData.password.trim() !== '') ? clientData.password : 'password123';
-      }
       
       // Préparer les données client
       const apiClientData = {
@@ -183,13 +150,6 @@ const Clients = () => {
         setClients(prev => prev.map(client => 
           client.id === editingClient.id ? { ...client, ...clientData } : client
         ));
-        
-        // Afficher un message de succès
-        setSnackbar({
-          open: true,
-          message: 'Client modifié avec succès',
-          severity: 'success'
-        });
       } else {
         // Ajout d'un nouveau client
         response = await clientService.createClient(apiClientData);
@@ -201,13 +161,6 @@ const Clients = () => {
           id: response.UserID || response.id
         };
         setClients(prev => [...prev, newClientWithId]);
-        
-        // Afficher un message de succès
-        setSnackbar({
-          open: true,
-          message: 'Client ajouté avec succès',
-          severity: 'success'
-        });
       }
       
       // Ne pas réinitialiser le formulaire si c'est en mode combiné
@@ -236,11 +189,6 @@ const Clients = () => {
     } catch (error) {
       console.error('Erreur lors de l\'ajout/modification du client:', error);
       setErrors({ submit: 'Une erreur est survenue. Veuillez réessayer.' });
-      setSnackbar({
-        open: true,
-        message: 'Erreur lors de l\'ajout/modification du client',
-        severity: 'error'
-      });
       setLoading(false);
       throw error;
     }
@@ -248,28 +196,8 @@ const Clients = () => {
 
   const handleEdit = (client) => {
     setEditingClient(client);
-    
-    // Convertir les dates du format local (DD/MM/YYYY) au format ISO (YYYY-MM-DD) pour l'édition
-    const convertLocalDateToISO = (localDate) => {
-      if (!localDate) return '';
-      
-      // Extraire les parties de la date (jour, mois, année)
-      const parts = localDate.split('/');
-      if (parts.length !== 3) return localDate; // Si le format n'est pas celui attendu, retourner tel quel
-      
-      // Réorganiser au format YYYY-MM-DD
-      return `${parts[2]}-${parts[1]}-${parts[0]}`;
-    };
-    
     // Préremplir le formulaire avec les données du client
-    const clientData = { 
-      ...client,
-      dateNaissance: convertLocalDateToISO(client.dateNaissance),
-      dateDelivrancePermis: convertLocalDateToISO(client.dateDelivrancePermis)
-    };
-    
-    console.log('Données client pour édition:', clientData);
-    
+    const clientData = { ...client };
     // Ouvrir le dialogue d'ajout/édition avec les données préremplies
     const event = new CustomEvent('edit-client', { detail: clientData });
     document.dispatchEvent(event);
@@ -284,39 +212,11 @@ const Clients = () => {
     setOpenDeleteDialog(true);
   };
 
-  const handleDeleteConfirm = async () => {
+  const handleDeleteConfirm = () => {
     if (confirmDeleteId) {
-      try {
-        setLoading(true);
-        // Appel à l'API pour supprimer le client
-        await clientService.deleteClient(confirmDeleteId);
-        
-        // Mise à jour de l'état local après la suppression réussie
-        setClients(prev => prev.filter(item => item.id !== confirmDeleteId));
-        
-        // Afficher un message de succès
-        setSnackbar({
-          open: true,
-          message: 'Client supprimé avec succès',
-          severity: 'success'
-        });
-        
-        // Fermer la boîte de dialogue de confirmation
-        setOpenDeleteDialog(false);
-        setConfirmDeleteId(null);
-        
-        // Actualiser la liste des clients depuis le serveur
-        fetchClients();
-      } catch (error) {
-        console.error('Erreur lors de la suppression du client:', error);
-        setSnackbar({
-          open: true,
-          message: 'Erreur lors de la suppression du client',
-          severity: 'error'
-        });
-      } finally {
-        setLoading(false);
-      }
+      setClients(prev => prev.filter(item => item.id !== confirmDeleteId));
+      setOpenDeleteDialog(false);
+      setConfirmDeleteId(null);
     }
   };
 
@@ -324,24 +224,9 @@ const Clients = () => {
     setOpenDeleteDialog(false);
     setConfirmDeleteId(null);
   };
-  
-  const handleCloseSnackbar = () => {
-    setSnackbar({ ...snackbar, open: false });
-  };
 
   const handleSearch = (e) => {
     setSearchTerm(e.target.value);
-    setPage(0); // Réinitialiser la page lors d'une nouvelle recherche
-  };
-  
-  // Gestionnaires d'événements pour la pagination
-  const handleChangePage = (event, newPage) => {
-    setPage(newPage);
-  };
-
-  const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
   };
 
   // Filtrer les clients en fonction du terme de recherche
@@ -356,12 +241,6 @@ const Clients = () => {
       (client.adresse && String(client.adresse).toLowerCase().includes(searchTermLower))
     );
   });
-  
-  // Appliquer la pagination aux clients filtrés
-  const paginatedClients = filteredClients.slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage
-  );
 
   const fetchClients = async () => {
     try {
@@ -388,46 +267,6 @@ const Clients = () => {
           id: client.UserID,
           civilite: client.Civilité || '',
           nom_complet: `${client.Prenom || ''} ${client.Nom || ''}`.trim() || 'Client sans nom',
-          telephone: client.Telephone || '',
-          cin_passport: client.CIN_Passport || '',
-          dateNaissance: client.DateNaissance ? new Date(client.DateNaissance).toLocaleDateString() : '',
-          numPermis: client.NumPermis || '',
-          dateDelivrancePermis: client.DateDelivrancePermis ? new Date(client.DateDelivrancePermis).toLocaleDateString() : '',
-          adresse: client.Adresse || '',
-          email: client.Email || ''
-        };
-      }).filter(client => client !== null); // Filtrer les clients null
-      
-      console.log('Données clients formatées pour l\'affichage:', formattedClients);
-      
-      // Trier les clients par ordre décroissant d'ID (les derniers ajoutés en premier)
-      const sortedClients = [...formattedClients].sort((a, b) => b.id - a.id);
-      
-      setClients(sortedClients);
-    } catch (error) {
-      console.error('Erreur lors de la récupération des clients:', error);
-      setClients([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchClients();
-    
-    // Écouter l'événement de rafraîchissement après un ajout combiné
-    const handleRefreshAfterCombinedSave = () => {
-      console.log('Actualisation des données clients après un ajout combiné');
-      fetchClients();
-    };
-    
-    document.addEventListener('refresh-data-after-combined-save', handleRefreshAfterCombinedSave);
-    
-    return () => {
-      document.removeEventListener('refresh-data-after-combined-save', handleRefreshAfterCombinedSave);
-    };
-  }, []);
-
   // Afficher un indicateur de chargement pendant la récupération des données
   if (loading) {
     return (
@@ -457,38 +296,32 @@ const Clients = () => {
       />
 
       <Paper elevation={3} sx={{ mb: 3, p: 2, borderRadius: 2 }}>
-        <Box sx={{ position: 'relative', width: '100%', overflowX: 'auto' }}>
-          <TableContainer sx={{ borderRadius: 2, maxWidth: '100%', overflowX: 'auto' }}>
-            <Table sx={{
-              minWidth: 650,
-              tableLayout: 'fixed',
-              '& .MuiTableRow-root:nth-of-type(odd)': { backgroundColor: 'action.hover' },
-              '& .MuiTableRow-root:hover': { backgroundColor: 'rgba(0, 0, 0, 0.1)' },
-              '& .MuiTableCell-root': { padding: '16px 8px', borderSpacing: '2px' },
-              borderCollapse: 'separate',
-              borderSpacing: '0 8px',
-            }}>
+        <TableContainer sx={{ borderRadius: 2, overflow: 'hidden' }}>
+          <Table sx={{
+            minWidth: 650,
+            '& .MuiTableRow-root:nth-of-type(odd)': { backgroundColor: 'action.hover' },
+            '& .MuiTableRow-root:hover': { backgroundColor: 'grey.200' },
+          }}>
             <TableHead>
               <TableRow>
-                <TableCell width="80px" sx={{ fontWeight: 'bold', backgroundColor: '#000', color: 'white', borderTopLeftRadius: 4, borderBottomLeftRadius: 4 }}>Civilité</TableCell>
-                <TableCell width="120px" sx={{ fontWeight: 'bold', backgroundColor: '#000', color: 'white' }}>Nom Complet</TableCell>
-                <TableCell width="100px" sx={{ fontWeight: 'bold', backgroundColor: '#000', color: 'white' }}>Téléphone</TableCell>
-                <TableCell width="100px" sx={{ fontWeight: 'bold', backgroundColor: '#000', color: 'white' }}>CIN/Passport</TableCell>
-                <TableCell width="100px" sx={{ fontWeight: 'bold', backgroundColor: '#000', color: 'white' }}>Date Naissance</TableCell>
-                <TableCell width="100px" sx={{ fontWeight: 'bold', backgroundColor: '#000', color: 'white' }}>Num Permis</TableCell>
-                <TableCell width="120px" sx={{ fontWeight: 'bold', backgroundColor: '#000', color: 'white' }}>Date Délivrance</TableCell>
-                <TableCell width="150px" sx={{ fontWeight: 'bold', backgroundColor: '#000', color: 'white' }}>Adresse</TableCell>
-                <TableCell width="120px" align="center" sx={{ fontWeight: 'bold', backgroundColor: '#000', color: '#FFFFFF', position: 'sticky', right: 0, zIndex: 2, borderTopRightRadius: 4, borderBottomRightRadius: 4 }}>Actions</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>ID</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>Civilité</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>Nom Complet</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>Téléphone</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>CIN/Passport</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>Date Naissance</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>Num Permis</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>Date Délivrance Permis</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>Adresse</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {paginatedClients.length > 0 ? (
-                paginatedClients.map((client, index) => (
-                  <TableRow key={client.id} sx={{
-                    backgroundColor: index % 2 === 0 ? '#f9f9f9' : 'white',
-                    '&:hover': { backgroundColor: '#f0f0f0' }
-                  }}>
-                    <TableCell sx={{ borderTopLeftRadius: 4, borderBottomLeftRadius: 4 }}>{client.civilite}</TableCell>
+              {filteredClients.length > 0 ? (
+                filteredClients.map(client => (
+                  <TableRow key={client.id}>
+                    <TableCell>{client.id}</TableCell>
+                    <TableCell>{client.civilite}</TableCell>
                     <TableCell>{client.nom_complet}</TableCell>
                     <TableCell>{client.telephone}</TableCell>
                     <TableCell>{client.cin_passport}</TableCell>
@@ -496,37 +329,9 @@ const Clients = () => {
                     <TableCell>{client.numPermis}</TableCell>
                     <TableCell>{client.dateDelivrancePermis}</TableCell>
                     <TableCell>{client.adresse}</TableCell>
-                    <TableCell align="center" sx={{ position: 'sticky', right: 0, zIndex: 1, borderTopRightRadius: 4, borderBottomRightRadius: 4 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
-                        <IconButton 
-                          onClick={() => handleEdit(client)}
-                          size="small"
-                          sx={{ 
-                            p: 0,
-                            '&:hover': { 
-                              transform: 'scale(1.1)'
-                            }
-                          }}
-                        >
-                          <Avatar sx={{ width: 30, height: 30, bgcolor: '#FFD700' }}>
-                            <EditIcon fontSize="small" sx={{ color: '#000' }} />
-                          </Avatar>
-                        </IconButton>
-                        <IconButton 
-                          onClick={() => handleDeleteClick(client.id)}
-                          size="small"
-                          sx={{ 
-                            p: 0,
-                            '&:hover': { 
-                              transform: 'scale(1.1)'
-                            }
-                          }}
-                        >
-                          <Avatar sx={{ width: 30, height: 30, bgcolor: '#ff4444' }}>
-                            <DeleteIcon fontSize="small" sx={{ color: '#FFF' }} />
-                          </Avatar>
-                        </IconButton>
-                      </Box>
+                    <TableCell align="center">
+                      <IconButton color="primary" size="small" onClick={() => handleEdit(client)}><EditIcon fontSize="small" /></IconButton>
+                      <IconButton color="error" size="small" onClick={() => handleDeleteClick(client.id)}><DeleteIcon fontSize="small" /></IconButton>
                     </TableCell>
                   </TableRow>
                 ))
@@ -539,30 +344,7 @@ const Clients = () => {
               )}
             </TableBody>
           </Table>
-          </TableContainer>
-        </Box>
-        
-        {/* Pagination */}
-        <TablePagination
-          component="div"
-          count={filteredClients.length}
-          page={page}
-          onPageChange={handleChangePage}
-          rowsPerPage={rowsPerPage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-          rowsPerPageOptions={[5, 10, 25]}
-          labelRowsPerPage="Lignes par page"
-          labelDisplayedRows={({ from, to, count }) => `${from}-${to} sur ${count}`}
-          sx={{
-            '.MuiTablePagination-selectLabel': { marginBottom: 0 },
-            '.MuiTablePagination-displayedRows': { marginBottom: 0 },
-            '.MuiTablePagination-select': { paddingTop: 0, paddingBottom: 0 },
-            '.MuiTablePagination-selectIcon': { top: 0 },
-            color: '#000',
-            backgroundColor: '#f5f5f5',
-            borderRadius: '0 0 8px 8px'
-          }}
-        />
+        </TableContainer>
       </Paper>
 
       {/* Dialogue de confirmation de suppression */}
@@ -587,29 +369,6 @@ const Clients = () => {
           </Button>
         </DialogActions>
       </Dialog>
-      {/* Notification Snackbar */}
-      <Snackbar 
-        open={snackbar.open} 
-        autoHideDuration={6000} 
-        onClose={handleCloseSnackbar}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-      >
-        <Alert 
-          onClose={handleCloseSnackbar} 
-          severity={snackbar.severity} 
-          variant="filled"
-          sx={{ 
-            width: '100%', 
-            backgroundColor: snackbar.severity === 'success' ? '#000' : undefined,
-            color: snackbar.severity === 'success' ? '#FFD700' : undefined,
-            '& .MuiAlert-icon': {
-              color: snackbar.severity === 'success' ? '#FFD700' : undefined
-            }
-          }}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
     </ReservationClientLayout>
   );
 };

@@ -4,8 +4,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Box } from '@mui/material';
 import { AuthProvider } from './context/AuthContext';
-// import { theme } from './theme';
-// import router from './routes';
+
 import Navbar from './components/Navbar/Navbar';
 import Footer from './components/Footer/Footer';
 import Home from './pages/Home/Home';
@@ -152,7 +151,7 @@ const MainLayout = () => {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
       
-          {/* Routes d'administration */}
+        
           <Route path="/admin/*" element={
             <AdminLayout>
               <Routes>
@@ -174,12 +173,7 @@ const MainLayout = () => {
 
 function App() {
   return (
-    // <ThemeProvider theme={theme}>
-    //   <CssBaseline />
-    //   <AuthProvider>
-    //       <RouterProvider router={router} />
-    //   </AuthProvider>
-    // </ThemeProvider>
+
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Router>

@@ -170,7 +170,7 @@ const Sidebar = () => {
       <Box sx={{ p: 2 }}>
         <Divider sx={{ backgroundColor: 'rgba(255,215,0,0.2)', mb: 2 }} />
         <ListItem
-          button
+          component="button"
           sx={{
             borderRadius: 2,
             py: 1.2,

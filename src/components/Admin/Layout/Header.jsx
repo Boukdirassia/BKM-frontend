@@ -69,56 +69,9 @@ const Header = () => {
             <span style={{ color: '#FFD700' }}>BKM</span> Admin
           </Typography>
           
-          <Box
-            sx={{
-              position: 'relative',
-              backgroundColor: '#f8f9fa',
-              borderRadius: 3,
-              marginRight: 2,
-              width: '300px',
-              border: '1px solid #eee',
-              transition: 'all 0.3s ease',
-              '&:hover': {
-                boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-                backgroundColor: '#fff',
-              },
-            }}
-          >
-            <Box sx={{ padding: '0 16px', height: '100%', position: 'absolute', display: 'flex', alignItems: 'center' }}>
-              <SearchIcon sx={{ color: '#888' }} />
-            </Box>
-            <InputBase
-              placeholder="Rechercher..."
-              sx={{
-                color: '#000',
-                padding: '10px 10px 10px 48px',
-                width: '100%',
-                '& input': {
-                  color: '#000',
-                  fontSize: '0.9rem',
-                },
-              }}
-            />
-          </Box>
+          {/* Barre de recherche supprimée */}
           
-          <Button 
-            variant="outlined" 
-            size="small"
-            startIcon={<FilterListIcon />}
-            endIcon={<KeyboardArrowDownIcon />}
-            sx={{ 
-              borderRadius: 2, 
-              textTransform: 'none',
-              borderColor: '#e0e0e0',
-              color: '#666',
-              '&:hover': {
-                borderColor: '#FFD700',
-                backgroundColor: 'rgba(255, 215, 0, 0.04)',
-              }
-            }}
-          >
-            Filtres
-          </Button>
+          {/* Bouton de filtrage supprimé */}
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
